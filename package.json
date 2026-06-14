@@ -1,0 +1,13 @@
+{
+  "name": "optimus-gps-reports",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "daily": "node report.js daily",
+    "weekly": "node report.js weekly"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "resend": "^4.0.0"
+  }
+}
