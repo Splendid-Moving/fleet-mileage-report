@@ -162,13 +162,7 @@ function buildEmailHtml(type, label, truckData) {
 </html>`;
 }
 
-async function run() {
-  const type = process.argv[2];
-  if (!['daily', 'weekly'].includes(type)) {
-    console.error('Usage: node report.js daily|weekly');
-    process.exit(1);
-  }
-
+async function sendReport(type) {
   const { start, end, label } = getDateRange(type);
   console.log(`Fetching ${type} report: ${label}`);
 
@@ -194,6 +188,16 @@ async function run() {
 
   if (error) { console.error('Email error:', error); process.exit(1); }
   console.log(`Email sent (${data.id})`);
+}
+
+async function run() {
+  // Always send daily report
+  await sendReport('daily');
+
+  // On Sundays, also send the weekly report
+  if (getLADayOfWeek(new Date()) === 0) {
+    await sendReport('weekly');
+  }
 }
 
 run().catch(err => { console.error(err); process.exit(1); });
