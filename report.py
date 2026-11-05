@@ -43,8 +43,9 @@ def get_date_range(report_type: str):
 
     if report_type == "daily":
         yesterday = today - timedelta(days=1)
-        start = datetime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0, tzinfo=TZ)
-        end = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59, tzinfo=TZ)
+        # Report day runs 6 AM yesterday -> 5:59:59 AM today (Pacific)
+        start = datetime(yesterday.year, yesterday.month, yesterday.day, 6, 0, 0, tzinfo=TZ)
+        end = datetime(today.year, today.month, today.day, 5, 59, 59, tzinfo=TZ)
         label = format_display_date(yesterday)
     else:
         # Weekly: Monday through today (run on Sunday)
