@@ -32,6 +32,12 @@ OPTIMUS_API_KEY = os.environ["OPTIMUS_API_KEY"]
 OPTIMUS_CLIENT_ID = os.environ["OPTIMUS_CLIENT_ID"]
 RESEND_FROM = os.environ["RESEND_FROM"]
 
+# Optional: also save the daily miles in the jobs database (through the jobs
+# app's Apps Script webhook, event GPS_MILES). Set both on Railway to turn on;
+# leave them unset and the report only emails, exactly as before.
+JOBS_APP_WEBHOOK_URL = os.getenv("JOBS_APP_WEBHOOK_URL", "").strip()
+JOBS_APP_WEBHOOK_SECRET = os.getenv("JOBS_APP_WEBHOOK_SECRET", "").strip()
+
 resend.api_key = os.environ["RESEND_API_KEY"]
 
 # ── Date helpers ────────────────────────────────────────────────────────
@@ -83,6 +89,29 @@ def fetch_truck_distance(truck_id: str, start: datetime, end: datetime) -> float
         return float(resp.text)
     except ValueError:
         return 0.0
+
+# ── Save to the jobs database ───────────────────────────────────────────
+
+def save_daily_miles(report_date, truck_data: list[dict]):
+    """Send the day's miles to the jobs app (Apps Script → Postgres).
+    Never stops the email: any problem is only printed."""
+    if not (JOBS_APP_WEBHOOK_URL and JOBS_APP_WEBHOOK_SECRET):
+        print("  (database save is off — JOBS_APP_WEBHOOK_URL / _SECRET not set)")
+        return
+    body = {
+        "secret": JOBS_APP_WEBHOOK_SECRET,
+        "event_type": "GPS_MILES",
+        "report_date": report_date.isoformat(),
+        "trucks": [
+            {"name": t["name"], "device_id": t["id"], "miles": float(t["miles"])}
+            for t in truck_data
+        ],
+    }
+    try:
+        resp = requests.post(JOBS_APP_WEBHOOK_URL, json=body, timeout=60)
+        print(f"  Saved to database: HTTP {resp.status_code} {resp.text[:200]}")
+    except Exception as e:  # noqa: BLE001 — the email must still go out
+        print(f"  Database save failed: {e}", file=sys.stderr)
 
 # ── Email ───────────────────────────────────────────────────────────────
 
@@ -171,7 +200,10 @@ def send_report(report_type: str):
         meters = fetch_truck_distance(truck["id"], start, end)
         miles = meters_to_miles(meters)
         print(f"  {truck['name']}: {miles} mi")
-        truck_data.append({"name": truck["name"], "miles": miles})
+        truck_data.append({"name": truck["name"], "id": truck["id"], "miles": miles})
+
+    if report_type == "daily":
+        save_daily_miles(start.date(), truck_data)
 
     subject = f"{'Daily' if report_type == 'daily' else 'Weekly'} Fleet Report — {label}"
 
